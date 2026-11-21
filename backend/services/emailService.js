@@ -21,16 +21,23 @@ function statusDetails(status) {
 }
 
 function createTransporter() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD } = process.env;
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_SECURE } = process.env;
   if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASSWORD) {
     throw new Error('Email alerts are not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASSWORD.');
   }
 
+  const port = Number(SMTP_PORT);
+  const secure = SMTP_SECURE !== undefined ? SMTP_SECURE === 'true' : port === 465;
+
   return nodemailer.createTransport({
     host: SMTP_HOST,
-    port: Number(SMTP_PORT),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: { user: SMTP_USER, pass: SMTP_PASSWORD }
+    port,
+    secure,
+    auth: { user: SMTP_USER, pass: SMTP_PASSWORD },
+    family: 4,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000
   });
 }
 
