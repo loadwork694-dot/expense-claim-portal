@@ -10,6 +10,7 @@ function escapeHtml(value) {
 function statusDetails(status) {
   const details = {
     Submitted: 'Your claim has been submitted and is waiting for Manager review.',
+    Approved: 'Your claim has been approved.',
     'Manager Approved': 'The Manager has approved your claim. It is now waiting for Accounts review.',
     'Accounts Approved': 'Accounts has approved your claim. It is now waiting for payment.',
     Paid: 'Payment for your claim has been completed.',
@@ -26,6 +27,9 @@ async function sendViaBrevo({ to, toName, subject, textContent, htmlContent }) {
   }
   if (!MAIL_FROM) {
     throw new Error('MAIL_FROM is not configured in Render Environment.');
+  }
+  if (!to) {
+    throw new Error('Employee email address is missing on the claim.');
   }
 
   const payload = {
@@ -63,17 +67,21 @@ async function sendViaBrevo({ to, toName, subject, textContent, htmlContent }) {
 }
 
 exports.sendStatusChangeEmail = async (claim, action, comment) => {
-  const employeeName = escapeHtml(claim.employee?.name);
-  const categoryName = escapeHtml(claim.category?.name || 'Expense');
-  const status = escapeHtml(claim.status);
-  const amount = Number(claim.amount || 0).toFixed(2);
+  const rawEmployeeName = claim?.employee?.name || 'Employee';
+  const rawCategoryName = claim?.category?.name || 'Expense';
+  const rawStatus = claim?.status || action || 'Updated';
+
+  const employeeName = escapeHtml(rawEmployeeName);
+  const categoryName = escapeHtml(rawCategoryName);
+  const status = escapeHtml(rawStatus);
+  const amount = Number(claim?.amount || 0).toFixed(2);
   const commentText = escapeHtml(comment);
 
   const textContent = [
-    `Hello ${claim.employee.name},`,
+    `Hello ${rawEmployeeName},`,
     '',
-    `Your expense claim for ${claim.category.name} (Rs ${amount}) is now ${claim.status}.`,
-    statusDetails(claim.status),
+    `Your expense claim for ${rawCategoryName} (Rs ${amount}) is now ${rawStatus}.`,
+    statusDetails(rawStatus),
     comment ? `Comment: ${comment}` : '',
     '',
     'Expense Claim Portal'
@@ -87,7 +95,7 @@ exports.sendStatusChangeEmail = async (claim, action, comment) => {
         </div>
         <div style="padding:24px">
           <p style="margin:0 0 16px">Hello ${employeeName},</p>
-          <p style="margin:0 0 20px;color:#b8cbc1">${statusDetails(claim.status)}</p>
+          <p style="margin:0 0 20px;color:#b8cbc1">${escapeHtml(statusDetails(rawStatus))}</p>
           <div style="border:1px solid #315343;border-radius:12px;padding:16px;background:#10271c">
             <div style="margin-bottom:10px;color:#91a89b;font-size:12px">Claim status</div>
             <div style="margin-bottom:16px;color:#31d3a0;font-size:22px;font-weight:bold">${status}</div>
@@ -101,9 +109,9 @@ exports.sendStatusChangeEmail = async (claim, action, comment) => {
   `;
 
   await sendViaBrevo({
-    to: claim.employee.email,
-    toName: claim.employee?.name,
-    subject: `Expense claim update: ${claim.status}`,
+    to: claim?.employee?.email,
+    toName: claim?.employee?.name,
+    subject: `Expense claim update: ${rawStatus}`,
     textContent,
     htmlContent
   });
