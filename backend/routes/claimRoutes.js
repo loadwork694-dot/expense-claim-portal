@@ -112,13 +112,12 @@ router.post('/', authorize('Employee'), async (req, res) => {
       }]
     });
     const populated = await populateClaim(Claim.findById(claim._id));
-    let notification = { sent: true };
-    try {
-      await sendStatusChangeEmail(populated, 'Submitted', 'Claim submitted');
-    } catch (error) {
-      notification = { sent: false, message: error.message };
-      console.error('Claim submission email failed:', error);
-    }
+    let notification = { sent: false, queued: true };
+    sendStatusChangeEmail(populated, 'Submitted', 'Claim submitted')
+      .catch((error) => {
+        console.error('Claim submission email failed:', error);
+      });
+
     return res.status(201).json({ claim: populated, notification });
   } catch (error) {
     console.error('Claim submission failed:', error);
