@@ -112,11 +112,16 @@ router.post('/', authorize('Employee'), async (req, res) => {
       }]
     });
     const populated = await populateClaim(Claim.findById(claim._id));
-    let notification = { sent: false, queued: true };
-    sendStatusChangeEmail(populated, 'Submitted', 'Claim submitted')
-      .catch((error) => {
-        console.error('Claim submission email failed:', error);
-      });
+    let notification = { sent: true };
+    try {
+      await sendStatusChangeEmail(populated, 'Submitted', 'Claim submitted');
+    } catch (error) {
+      notification = {
+        sent: false,
+        message: error?.message || 'Unable to send email notification.'
+      };
+      console.error('Claim submission email failed:', error);
+    }
 
     return res.status(201).json({ claim: populated, notification });
   } catch (error) {
@@ -218,7 +223,10 @@ router.post('/:id/transition', authorize('Manager', 'Accounts'), async (req, res
     try {
       await sendStatusChangeEmail(populated, nextStatus, comment);
     } catch (error) {
-      notification = { sent: false, message: error.message };
+      notification = {
+        sent: false,
+        message: error?.message || 'Unable to send email notification.'
+      };
       console.error('Claim status email failed:', error);
     }
     return res.json({ claim: populated, notification });
