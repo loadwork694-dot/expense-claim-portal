@@ -11,40 +11,6 @@ function localDateValue() {
   return date.toISOString().slice(0, 10)
 }
 
-function findReceiptValues(text) {
-  const amountText = text.match(
-    /(?:grand\s+total|total\s+due|amount\s+paid|total|amount)\D{0,20}(?:₹|INR|Rs\.?)?\s*([\d,]+(?:\.\d{1,2})?)/i
-  )?.[1]
-  const dateText = text.match(/\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2})\b/)?.[1]
-
-  let date = ''
-  if (dateText) {
-    const parts = dateText.split(/[/-]/).map(Number)
-    if (parts[0] > 999) {
-      date = `${parts[0]}-${String(parts[1]).padStart(2, '0')}-${String(parts[2]).padStart(2, '0')}`
-    } else {
-      let year = parts[2]
-      if (year < 100) year += year < 70 ? 2000 : 1900
-      date = `${year}-${String(parts[1]).padStart(2, '0')}-${String(parts[0]).padStart(2, '0')}`
-    }
-    const [year, month, day] = date.split('-').map(Number)
-    const parsedDate = new Date(Date.UTC(year, month - 1, day))
-    if (
-      Number.isNaN(parsedDate.getTime())
-      || parsedDate.getUTCFullYear() !== year
-      || parsedDate.getUTCMonth() !== month - 1
-      || parsedDate.getUTCDate() !== day
-    ) {
-      date = ''
-    }
-  }
-
-  return {
-    amount: amountText ? amountText.replace(/,/g, '') : '',
-    date
-  }
-}
-
 function ClaimsPage({ token, user, mode, refreshVersion, onRefresh, onNotice }) {
   const [claims, setClaims] = useState([])
   const [categories, setCategories] = useState([])
@@ -58,7 +24,6 @@ function ClaimsPage({ token, user, mode, refreshVersion, onRefresh, onNotice }) 
   const [error, setError] = useState('')
   const [loadedRefreshVersion, setLoadedRefreshVersion] = useState(-1)
   const [submitting, setSubmitting] = useState(false)
-  const [scanning, setScanning] = useState(false)
   const [rejectingClaim, setRejectingClaim] = useState('')
   const [rejectReason, setRejectReason] = useState('')
   const loading = mode === 'claims' && loadedRefreshVersion !== refreshVersion
@@ -142,33 +107,6 @@ function ClaimsPage({ token, user, mode, refreshVersion, onRefresh, onNotice }) 
     } catch (requestError) {
       setError(requestError.message || 'Unable to prepare this receipt.')
       event.target.value = ''
-    }
-  }
-
-  const scanReceipt = async () => {
-    if (!receipt || !receipt.type.startsWith('image/')) return
-    setScanning(true)
-    setError('')
-    try {
-      const { createWorker } = await import('tesseract.js')
-      const worker = await createWorker('eng')
-      try {
-        const result = await worker.recognize(receipt)
-        const values = findReceiptValues(result.data.text)
-        if (values.amount) setAmount(values.amount)
-        if (values.date) setDate(values.date)
-        if (!values.amount && !values.date) {
-          setError('Could not read an amount or date. Enter them manually.')
-        } else {
-          onNotice('Receipt suggestions added. Please check the amount and date before submitting.')
-        }
-      } finally {
-        await worker.terminate()
-      }
-    } catch (requestError) {
-      setError(requestError.message || 'Receipt scanning failed. Enter the details manually.')
-    } finally {
-      setScanning(false)
     }
   }
 
@@ -310,11 +248,6 @@ function ClaimsPage({ token, user, mode, refreshVersion, onRefresh, onNotice }) 
               <span>{receipt.name} · {(receipt.size / 1024).toFixed(0)} KB</span>
               {receiptPreview?.file === receipt && (
                 <img className="receipt-preview" src={receiptPreview.url} alt="Selected receipt preview" />
-              )}
-              {receipt.type.startsWith('image/') && (
-                <button type="button" className="secondary-button" onClick={scanReceipt} disabled={scanning}>
-                  {scanning ? 'Reading receipt…' : 'Read amount/date from receipt'}
-                </button>
               )}
             </div>
           )}
